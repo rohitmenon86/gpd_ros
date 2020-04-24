@@ -51,6 +51,7 @@
 #include <pcl/point_types.h>
 
 // GPD
+#include <gpd/util/config_file.h>
 #include <gpd/util/cloud.h>
 #include <gpd/grasp_detector.h>
 #include <gpd/sequential_importance_sampling.h>
@@ -154,6 +155,7 @@ private:
   Eigen::Matrix3Xd fillMatrixFromFile(const std::string& filename, int num_normals);
 
   Eigen::Vector3d view_point_; ///< (input) view point of the camera onto the point cloud
+
 
   gpd::util::Cloud* cloud_camera_; ///< stores point cloud with (optional) camera information and surface normals
   std_msgs::Header cloud_camera_header_; ///< stores header of the point cloud
