@@ -4,7 +4,7 @@ project(gpd_ros)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS cmake_modules eigen_conversions message_generation roscpp rospy sensor_msgs std_msgs)
+find_package(catkin REQUIRED COMPONENTS cmake_modules eigen_conversions message_generation roscpp rospy sensor_msgs std_msgs dynamic_reconfigure)
 
 # PCL
 find_package(PCL 1.9 REQUIRED)
@@ -33,8 +33,15 @@ add_message_files(FILES CloudIndexed.msg CloudSamples.msg CloudSources.msg Grasp
 ## Generate services in the 'srv' folder
 add_service_files(FILES detect_grasps.srv)
 
+## Generate dynamic_reconfigure header
+generate_dynamic_reconfigure_options(
+  cfg/detect_grasps.cfg
+)
+
 ## Generate added messages and services with any dependencies listed here
 generate_messages(DEPENDENCIES geometry_msgs sensor_msgs std_msgs)
+
+
 
 ###################################
 ## catkin specific configuration ##
@@ -47,7 +54,7 @@ generate_messages(DEPENDENCIES geometry_msgs sensor_msgs std_msgs)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 INCLUDE_DIRS include
-CATKIN_DEPENDS cmake_modules eigen_conversions geometry_msgs message_runtime roscpp sensor_msgs std_msgs
+CATKIN_DEPENDS cmake_modules eigen_conversions geometry_msgs message_runtime roscpp sensor_msgs std_msgs dynamic_reconfigure
 DEPENDS PCL
 # CATKIN_DEPENDS cmake_modules eigen_conversions geometry_msgs message_runtime roscpp sensor_msgs std_msgs
 # DEPENDS Eigen OpenCV PCL
@@ -70,9 +77,14 @@ add_library(${PROJECT_NAME}_grasp_plotter src/${PROJECT_NAME}/grasp_plotter.cpp)
 add_executable(${PROJECT_NAME}_detect_grasps src/gpd_ros/grasp_detection_node.cpp)
 add_executable(${PROJECT_NAME}_detect_grasps_server src/gpd_ros/grasp_detection_server.cpp)
 
+add_executable(${PROJECT_NAME}_detect_grasp_test src/gpd_ros/detectGrasps_ext_param.cpp)
+add_dependencies(${PROJECT_NAME}_detect_grasp_test ${PROJECT_NAME}_gencfg)
+
+
 ## Rename C++ executable without prefix
 set_target_properties(${PROJECT_NAME}_detect_grasps PROPERTIES OUTPUT_NAME detect_grasps PREFIX "")
 set_target_properties(${PROJECT_NAME}_detect_grasps_server PROPERTIES OUTPUT_NAME detect_grasps_server PREFIX "")
+set_target_properties(${PROJECT_NAME}_detect_grasp_test PROPERTIES OUTPUT_NAME detect_grasp_test PREFIX "")
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_detect_grasps
@@ -92,4 +104,8 @@ target_link_libraries(${PROJECT_NAME}_grasp_plotter
                       ${catkin_LIBRARIES})
 target_link_libraries(${PROJECT_NAME}_grasp_messages
                       ${GPD_LIB}
+                      ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_detect_grasp_test
+                      ${GPD_LIB}
+                      ${PCL_LIBRARIES}
                       ${catkin_LIBRARIES})
