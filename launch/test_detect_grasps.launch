@@ -10,20 +10,20 @@
   <param name="config_file" value="/home/atmaraaj/hrg/gpd/cfg/eigen_params.cfg" />
   <param name="point_cloud_topic" value="camera/depth/points"/>
   <param name="rviz_topic" value="plot_grasps" />
-  <rosparam param="camera_position">[0,0,0]</rosparam>
-    <rosparam param="direction">[1,0,0]</rosparam>
+  <rosparam param="camera_position">[0, 0, 0]</rosparam>
+    <rosparam param="direction">[1, 0, 0]</rosparam>
     <rosparam param="workspace">[-1, 1, -1, 1, -1, 1]</rosparam>
     <param name="thresh_rad" value="2.0"/>
     <param name="approach_direction" value="False"/>
 
     <!-- The listener node subscribes to the custom message that talker is publishing. -->
-  <node pkg="gpd_ros" type="detect_grasp_test" name=""/>
+  <!--node pkg="gpd_ros" type="detect_grasp_test" name=""/-->
   
   <!-- Start up the dynamic reconfigure GUI. -->
   <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"/>
 
   <!-- Start up rqt_console so we can see the output of listener. -->
-  <node pkg="rqt_console" type="rqt_console" name="rqt_console"/>
+  <!-- node pkg="rqt_console" type="rqt_console" name="rqt_console"/-->
 
   
 </launch>
