@@ -2,8 +2,14 @@
 #include <ros/ros.h>
 #include <ros/time.h>
 #include <sensor_msgs/point_cloud_conversion.h>
+#include <geometry_msgs/Point.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <pcl_ros/point_cloud.h>
+
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
+#include<tf2_ros/buffer.h>
+#include<tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 // GPD library
 #include <gpd/util/cloud.h>
@@ -20,22 +26,16 @@
 // initialize param variables
 struct gpd::detect_params myParam;
 
-/*
-Eigen::Vector3d direction; 
-Eigen::Matrix3Xd camera_position; 
-std::vector<double> workspace; 
-bool approach_direction;
-double thresh_rad;
-*/
-
 // get params from param server, values initialized in launch file
 std::vector<double> direction;
 std::vector<double> camera_position;
-std::vector<double> workspace;
+std::vector<double> gpd_workspace_;
 bool approach_direction;
-double thresh_rad;
+double thresh_rad, ws_height;
 std::string point_cloud_topic;
 std::string config_file;
+std::string grasp_frame_id = "camera_depth_optical_frame";
+geometry_msgs::Point point1, point2, point3;
 
 std::string frame_; ///< point cloud frame
 bool has_cloud = false;
@@ -52,8 +52,7 @@ void getPointCloud()
     delete cloudPtr; //deallocate memory
     cloudPtr = NULL; //point to NULL
     has_cloud = false;
-    
-    
+        
     ros::Time request_time = ros::Time::now();
     ros::Time point_cloud_time;
     
@@ -97,6 +96,166 @@ void getPointCloud()
         point_cloud_time = pc_msg->header.stamp;
         frame_ = pc_msg->header.frame_id;
     }
+}
+
+// point-point3 make the diagonal, point1-left, point2-right
+void getFourthPoint_NormalVector(geometry_msgs::Point& point4, double cross_P[], const geometry_msgs::Point& point1, const geometry_msgs::Point& point2, const geometry_msgs::Point& point3) {
+
+    // p4 = p1 to p3 diagonal midpoint + (vector of p2 to diagonal midpoint)
+    double x_m  = point1.x + (point3.x - point1.x)/2;
+    double y_m  = point1.y + (point3.y - point1.y)/2;
+    double z_m  = point1.z + (point3.z - point1.z)/2;
+    point4.x = x_m + (x_m - point2.x);
+    point4.y = y_m + (y_m - point2.y);
+    point4.z = z_m + (z_m - point2.z);
+
+    // normal vector = cross product of two vector (3 points)
+    double vect_B[3] = {point1.x - point2.x, point1.y - point2.y, point1.z - point2.z}; // p2 to p1
+    double vect_A[3] = {point3.x - point2.x, point3.y - point2.y, point3.z - point2.z}; // p2 to p3
+
+    cross_P[0] = vect_A[1] * vect_B[2] - vect_A[2] * vect_B[1]; 
+    cross_P[1] = vect_A[2] * vect_B[0] - vect_A[0] * vect_B[2]; 
+    cross_P[2] = vect_A[0] * vect_B[1] - vect_A[1] * vect_B[0]; 
+
+    // make unit vector of normal
+    double magnitude = sqrt(pow(cross_P[0], 2)) + sqrt(pow(cross_P[1], 2)) + sqrt(pow(cross_P[2], 2));
+    for(int i = 0; i < 3; i++) {cross_P[i] = cross_P[i] / magnitude;}
+}
+
+void transformPosition(const geometry_msgs::Point& pose_in, geometry_msgs::Point& pose_out, std::string source_frame, std::string target_frame)
+{
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tfListener(tfBuffer);
+    geometry_msgs::TransformStamped source2target;
+    ros::Duration timeout(1.0);
+    
+    try {
+        source2target = tfBuffer.lookupTransform(target_frame, source_frame, ros::Time(0), timeout);
+    } catch (tf2::LookupException& e) {
+        std::cout<<e.what()<<endl<<"Trying again with 2s timeout."<<endl;
+        source2target = tfBuffer.lookupTransform(target_frame, source_frame, ros::Time(0), ros::Duration(2.0) );
+    }
+    ROS_INFO_STREAM("source2target: "<<source2target<<"\n");
+    tf2::doTransform(pose_in,  pose_out, source2target);
+}
+
+void setGPDGraspWorkspace(const double& height, const geometry_msgs::Point& point1, 
+    const geometry_msgs::Point& point2, const geometry_msgs::Point& point3)
+{
+    double offset = 0.05;
+    std::vector< geometry_msgs::Point > workspace_(8);
+    double normal_unit[3];
+    
+    workspace_[0] = point1;
+    workspace_[0].z += offset;
+    
+    workspace_[1] = point2;
+    workspace_[1].z += offset;
+    
+    workspace_[2] = point3;    
+    workspace_[2].z += offset;
+    
+    workspace_[3] = point1; //initiate
+    getFourthPoint_NormalVector( workspace_[3], normal_unit, point1, point2, point3);
+    workspace_[3].z += offset;
+    
+    workspace_[4].x = workspace_[0].x + height * normal_unit[0];
+    workspace_[4].y = workspace_[0].y + height * normal_unit[1];
+    workspace_[4].z = workspace_[0].z + height * normal_unit[2];
+
+    workspace_[5].x = workspace_[1].x + height * normal_unit[0];
+    workspace_[5].y = workspace_[1].y + height * normal_unit[1];
+    workspace_[5].z = workspace_[1].z + height * normal_unit[2];
+
+    workspace_[6].x = workspace_[2].x + height * normal_unit[0];
+    workspace_[6].y = workspace_[2].y + height * normal_unit[1];
+    workspace_[6].z = workspace_[2].z + height * normal_unit[2];
+
+    workspace_[7].x = workspace_[3].x + height * normal_unit[0];
+    workspace_[7].y = workspace_[3].y + height * normal_unit[1];
+    workspace_[7].z = workspace_[3].z + height * normal_unit[2];
+  
+    std::vector<geometry_msgs::Point> workspace_camera_frame(8);
+    std::vector<double> x, y, z;
+    x.resize(8);
+    y.resize(8);
+    z.resize(8);
+    
+    for(short i = 0; i < 8; ++i)
+    {
+        transformPosition(workspace_[i], workspace_camera_frame[i], "world", grasp_frame_id);
+        x[i] = workspace_camera_frame[i].x;
+        y[i] = workspace_camera_frame[i].y;
+        z[i] = workspace_camera_frame[i].z;
+        
+    }
+    
+    gpd_workspace_.resize(6);
+    gpd_workspace_[0] = *std::min_element(x.begin(), x.end());
+    gpd_workspace_[1] = *std::max_element(x.begin(), x.end());
+    
+    gpd_workspace_[2] = *std::min_element(y.begin(), y.end());
+    gpd_workspace_[3] = *std::max_element(y.begin(), y.end());
+    
+    gpd_workspace_[4] = *std::min_element(z.begin(), z.end());
+    gpd_workspace_[5] = *std::max_element(z.begin(), z.end());
+    
+    if (ros::param::has("/detect_grasps/workspace"))
+    {
+        ros::param::set("/detect_grasps/workspace", gpd_workspace_);
+    }
+
+}
+
+void init_param(ros::NodeHandle& nh) {
+    nh.getParam("camera_position", camera_position);
+    nh.getParam("direction", direction);
+    nh.getParam("approach_direction", approach_direction);
+    nh.getParam("thresh_rad", thresh_rad);
+    nh.getParam("height", ws_height);
+    
+    std::vector<double> temp;
+    nh.getParam("point1", temp);
+    nh.setParam("point1_x", temp[0]);
+    nh.setParam("point1_y", temp[1]);
+    nh.setParam("point1_z", temp[2]);
+    point1.x = temp[0];
+    point1.y = temp[1];
+    point1.z = temp[2];
+    temp.clear();
+
+    nh.getParam("point2", temp);
+    nh.setParam("point2_x", temp[0]);
+    nh.setParam("point2_y", temp[1]);
+    nh.setParam("point2_z", temp[2]);
+    point2.x = temp[0];
+    point2.y = temp[1];
+    point2.z = temp[2];
+    temp.clear();
+
+    nh.getParam("point3", temp);
+    nh.setParam("point3_x", temp[0]);
+    nh.setParam("point3_y", temp[1]);
+    nh.setParam("point3_z", temp[2]);
+    point3.x = temp[0];
+    point3.y = temp[1];
+    point3.z = temp[2];
+    temp.clear();
+
+    nh.param<std::string>("point_cloud_topic", point_cloud_topic, "camera/depth/points");
+    nh.param<std::string>("config_file", config_file, "/home/atmaraaj/hrg/gpd/cfg/eigen_params.cfg");
+
+    // Initialize param values, modify params to type required
+    myParam.workspace.resize(6);
+    myParam.camera_position.resize(3,1);
+
+    setGPDGraspWorkspace(ws_height, point1, point2, point3);
+    myParam.workspace           = gpd_workspace_;
+    myParam.thresh_rad          = thresh_rad;
+    myParam.approach_direction  = approach_direction;
+    myParam.direction       << direction[0], direction[1], direction[2];
+    myParam.camera_position << camera_position[0], camera_position[1], camera_position[2];
+     
 }
 
 void run()
@@ -164,13 +323,19 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level)
                                config.groups.camera_position.y1, 
                                config.groups.camera_position.z1;
 
-    myParam.workspace.assign({config.groups.workspace.size*-1, 
-                            config.groups.workspace.size*1, 
-                            config.groups.workspace.size*-1, 
-                            config.groups.workspace.size*1, 
-                            config.groups.workspace.size*-1, 
-                            config.groups.workspace.size*1});
+    point1.x = config.groups.workspace.point1_x;
+    point1.y = config.groups.workspace.point1_y;
+    point1.z = config.groups.workspace.point1_z;
+    point2.x = config.groups.workspace.point2_x;
+    point2.y = config.groups.workspace.point2_y;
+    point2.z = config.groups.workspace.point2_z;
+    point3.x = config.groups.workspace.point3_x;
+    point3.y = config.groups.workspace.point3_y;
+    point3.z = config.groups.workspace.point3_z;
+    ws_height = config.groups.workspace.height;
 
+    setGPDGraspWorkspace(ws_height, point1, point2, point3);
+    myParam.workspace = gpd_workspace_;
     myParam.thresh_rad = config.thresh_rad;
     myParam.approach_direction = config.approach_direction;
 
@@ -188,6 +353,8 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level)
     }
 }
 
+// receives three points on a plane and height along plane
+// point1-point3 make the diagonal
 
 int main(int argc, char **argv)
 {
@@ -202,28 +369,9 @@ int main(int argc, char **argv)
     cb = boost::bind(&configCallback, _1, _2);
     dr_srv_.setCallback(cb);
    
-    {
-        nh.getParam("camera_position", camera_position);
-        nh.getParam("workspace", workspace);
-        nh.getParam("direction", direction);
-        nh.getParam("approach_direction", approach_direction);
-        nh.getParam("thresh_rad", thresh_rad);
+    // Assign param values
+    init_param(nh);
 
-        nh.param<std::string>("point_cloud_topic", point_cloud_topic, "camera/depth/points");
-        nh.param<std::string>("config_file", config_file, "/home/atmaraaj/hrg/gpd/cfg/eigen_params.cfg");
-
-        // Initialize param values, modify params to type required
-        
-        myParam.workspace.resize(6);
-        myParam.camera_position.resize(3,1);
-
-        myParam.direction       << direction[0], direction[1], direction[2];
-        myParam.camera_position << camera_position[0], camera_position[1], camera_position[2];
-        myParam.workspace           = workspace;
-        myParam.thresh_rad          = thresh_rad;
-        myParam.approach_direction  = approach_direction; 
-    }
-    
     detector = new gpd::GraspDetector(config_file);
     //rviz_plotter_ = new GraspPlotter(nh, detector->getHandSearchParameters().hand_geometry_);
 
