@@ -1,5 +1,5 @@
 <launch>
-    <!-- Arguments to allow changing common parameters from the command line or when including this file from other launch files. -->
+  <!-- Arguments to allow changing common parameters from the command line or when including this file from other launch files. -->
   <!--
   <arg name="a" default="1"/>
   <arg name="b" default="2"/>
@@ -7,26 +7,30 @@
   <arg name="rate" default="1.0"/>
    -->
 
+  <!-- Start up the dynamic reconfigure GUI. -->
+  <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"/>
+
+
   <param name="config_file" value="/home/atmaraaj/hrg/gpd/cfg/eigen_params.cfg" />
   <param name="point_cloud_topic" value="camera/depth/points"/>
   <param name="rviz_topic" value="plot_grasps" />
   <rosparam param="camera_position">[0, 0, 0]</rosparam>
-  <rosparam param="direction">[1, 0, 0]</rosparam>
   <param name="thresh_rad" value="2.0"/>
   <param name="approach_direction" value="False"/>
 
-  <rosparam param='point1'>[-1.0, -0.5, 0.5]</rosparam>
-  <rosparam param='point2'>[-1.0, 0.5, 0.5]</rosparam>
-  <rosparam param='point3'>[-1.5, 0.5, 0.5]</rosparam>
+  <!-- 0 = x-dir; 1 = y-dir; 2 = z-dir -->
+  <param name="direction" value="0"/>
+
+  <rosparam param='point1'>[-1.0, -0.5, 0.3]</rosparam>
+  <rosparam param='point2'>[-1.0, 0.5, 0.3]</rosparam>
+  <rosparam param='point3'>[-1.5, 0.5, 0.3]</rosparam>
   <param name="height" value="1.0"/>
   
 
     <!-- The listener node subscribes to the custom message that talker is publishing. -->
   <!--node pkg="gpd_ros" type="detect_grasp_test" name=""/-->
   
-  <!-- Start up the dynamic reconfigure GUI. -->
-  <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"/>
-
+  
   <!-- Start up rqt_console so we can see the output of listener. -->
   <!-- node pkg="rqt_console" type="rqt_console" name="rqt_console"/-->
 

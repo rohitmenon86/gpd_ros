@@ -4,6 +4,7 @@
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <geometry_msgs/Point.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/Marker.h>
 #include <pcl_ros/point_cloud.h>
 
 #include <tf2_ros/transform_listener.h>
@@ -27,7 +28,7 @@
 struct gpd::detect_params myParam;
 
 // get params from param server, values initialized in launch file
-std::vector<double> direction;
+int direction;
 std::vector<double> camera_position;
 std::vector<double> gpd_workspace_;
 bool approach_direction;
@@ -36,6 +37,7 @@ std::string point_cloud_topic;
 std::string config_file;
 std::string grasp_frame_id = "camera_depth_optical_frame";
 geometry_msgs::Point point1, point2, point3;
+visualization_msgs::Marker cube_lines;
 
 std::string frame_; ///< point cloud frame
 bool has_cloud = false;
@@ -139,6 +141,8 @@ void transformPosition(const geometry_msgs::Point& pose_in, geometry_msgs::Point
     tf2::doTransform(pose_in,  pose_out, source2target);
 }
 
+// receives three points on a plane and height along plane
+// point1-point3 make the diagonal
 void setGPDGraspWorkspace(const double& height, const geometry_msgs::Point& point1, 
     const geometry_msgs::Point& point2, const geometry_msgs::Point& point3)
 {
@@ -146,6 +150,7 @@ void setGPDGraspWorkspace(const double& height, const geometry_msgs::Point& poin
     std::vector< geometry_msgs::Point > workspace_(8);
     double normal_unit[3];
     
+    // Vertices of workspace
     workspace_[0] = point1;
     workspace_[0].z += offset;
     
@@ -174,20 +179,41 @@ void setGPDGraspWorkspace(const double& height, const geometry_msgs::Point& poin
     workspace_[7].x = workspace_[3].x + height * normal_unit[0];
     workspace_[7].y = workspace_[3].y + height * normal_unit[1];
     workspace_[7].z = workspace_[3].z + height * normal_unit[2];
-  
+    
+    // Make cube in RViz
+    cube_lines.header.stamp     = ros::Time::now();
+    cube_lines.points.clear();
+    cube_lines.points.push_back(workspace_[0]);
+    cube_lines.points.push_back(workspace_[1]);
+    cube_lines.points.push_back(workspace_[2]);
+    cube_lines.points.push_back(workspace_[3]);
+    cube_lines.points.push_back(workspace_[0]);
+    cube_lines.points.push_back(workspace_[3]);
+    cube_lines.points.push_back(workspace_[7]);
+    cube_lines.points.push_back(workspace_[4]);
+    cube_lines.points.push_back(workspace_[5]);
+    cube_lines.points.push_back(workspace_[6]);
+    cube_lines.points.push_back(workspace_[7]);
+    cube_lines.points.push_back(workspace_[4]);
+    cube_lines.points.push_back(workspace_[0]);
+    cube_lines.points.push_back(workspace_[1]);
+    cube_lines.points.push_back(workspace_[5]);
+    cube_lines.points.push_back(workspace_[6]);
+    cube_lines.points.push_back(workspace_[2]);
+
     std::vector<geometry_msgs::Point> workspace_camera_frame(8);
     std::vector<double> x, y, z;
     x.resize(8);
     y.resize(8);
     z.resize(8);
     
+    // transform ws from world frame to camera_optical_depth_frame
     for(short i = 0; i < 8; ++i)
     {
         transformPosition(workspace_[i], workspace_camera_frame[i], "world", grasp_frame_id);
         x[i] = workspace_camera_frame[i].x;
         y[i] = workspace_camera_frame[i].y;
         z[i] = workspace_camera_frame[i].z;
-        
     }
     
     gpd_workspace_.resize(6);
@@ -253,8 +279,12 @@ void init_param(ros::NodeHandle& nh) {
     myParam.workspace           = gpd_workspace_;
     myParam.thresh_rad          = thresh_rad;
     myParam.approach_direction  = approach_direction;
-    myParam.direction       << direction[0], direction[1], direction[2];
-    myParam.camera_position << camera_position[0], camera_position[1], camera_position[2];
+    myParam.camera_position     << camera_position[0], camera_position[1], camera_position[2];
+
+    if      (direction == 0) {myParam.direction << 1, 0, 0;}
+    else if (direction == 1) {myParam.direction << 0, 1, 0;}
+    else if (direction == 2) {myParam.direction << 0, 0, 1;}
+    else {myParam.direction << 1, 0, 0;}
      
 }
 
@@ -309,16 +339,18 @@ void run()
 }
 
 //dynamic configCallback
-void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level)
+void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level, ros::Publisher* ws_pub)
 {
     ROS_WARN("CALLBACK CALLED");
     myParam.camera_position.resize(3,1);
     myParam.workspace.resize(6);
     // modify params to type required
-    myParam.direction << config.groups.direction.x, 
-                         config.groups.direction.y, 
-                         config.groups.direction.z;
 
+    direction = config.direction;
+    if      (direction == 0) {myParam.direction << 1, 0, 0;}
+    else if (direction == 1) {myParam.direction << 0, 1, 0;}
+    else if (direction == 2) {myParam.direction << 0, 0, 1;}
+    
     myParam.camera_position << config.groups.camera_position.x1, 
                                config.groups.camera_position.y1, 
                                config.groups.camera_position.z1;
@@ -340,7 +372,10 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level)
     myParam.approach_direction = config.approach_direction;
 
     ROS_INFO("New parameters set.");
-    
+
+    // Publish updated worspace cube lines
+    ws_pub->publish(cube_lines);
+
     char input;
     if (has_cloud)
     {
@@ -353,24 +388,35 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level)
     }
 }
 
-// receives three points on a plane and height along plane
-// point1-point3 make the diagonal
-
 int main(int argc, char **argv)
 {
     // Set up ROS.
     ros::init(argc, argv, "detect_grasp_test");
     ros::NodeHandle nh;
-    ros::Publisher grasps_rviz_pub_ = nh.advertise<visualization_msgs::MarkerArray>("plot_grasps", 1);
+    ros::Publisher grasps_rviz_pub_  = nh.advertise<visualization_msgs::MarkerArray>("plot_grasps", 1);
+    ros::Publisher workspacecube_pub = nh.advertise<visualization_msgs::Marker>("workspace_cube", 1);
     
     //! Dynamic reconfigure server.
     dynamic_reconfigure::Server<gpd_ros::detect_graspsConfig> dr_srv_;
     dynamic_reconfigure::Server<gpd_ros::detect_graspsConfig>::CallbackType cb;
-    cb = boost::bind(&configCallback, _1, _2);
+    cb = boost::bind(&configCallback, _1, _2, &workspacecube_pub);
     dr_srv_.setCallback(cb);
-   
+    
+    // Initialize makers line 
+    cube_lines.header.frame_id  = "/world";
+    cube_lines.ns               = "detect_grasp_test";
+    cube_lines.action           = visualization_msgs::Marker::ADD;
+    cube_lines.pose.orientation.w = 1.0;
+    cube_lines.id               = 0;
+    cube_lines.type             = visualization_msgs::Marker::LINE_STRIP;
+    cube_lines.scale.x          = 0.1;
+    cube_lines.color.r          = 1.0;
+    cube_lines.color.a          = 0.6;
+
     // Assign param values
     init_param(nh);
+
+    workspacecube_pub.publish(cube_lines);
 
     detector = new gpd::GraspDetector(config_file);
     //rviz_plotter_ = new GraspPlotter(nh, detector->getHandSearchParameters().hand_geometry_);
