@@ -116,6 +116,7 @@ target_link_libraries(${PROJECT_NAME}_grasp_messages
                       ${GPD_LIB}
                       ${catkin_LIBRARIES})
 target_link_libraries(${PROJECT_NAME}_detect_grasp_test
+                      ${PROJECT_NAME}_grasp_plotter
                       ${GPD_LIB}
                       ${PCL_LIBRARIES}
                       ${catkin_LIBRARIES})

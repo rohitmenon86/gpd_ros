@@ -137,7 +137,7 @@ void transformPosition(const geometry_msgs::Point& pose_in, geometry_msgs::Point
         std::cout<<e.what()<<endl<<"Trying again with 2s timeout."<<endl;
         source2target = tfBuffer.lookupTransform(target_frame, source_frame, ros::Time(0), ros::Duration(2.0) );
     }
-    ROS_INFO_STREAM("source2target: "<<source2target<<"\n");
+    // ROS_INFO_STREAM("source2target: "<<source2target<<"\n");
     tf2::doTransform(pose_in,  pose_out, source2target);
 }
 
@@ -281,10 +281,20 @@ void init_param(ros::NodeHandle& nh) {
     myParam.approach_direction  = approach_direction;
     myParam.camera_position     << camera_position[0], camera_position[1], camera_position[2];
 
-    if      (direction == 0) {myParam.direction << 1, 0, 0;}
-    else if (direction == 1) {myParam.direction << 0, 1, 0;}
-    else if (direction == 2) {myParam.direction << 0, 0, 1;}
-    else {myParam.direction << 1, 0, 0;}
+    geometry_msgs::Point tmp1, tmp2;
+    float direction_[3] = {0, 0, 0};
+    
+    if      (direction == 0) {direction_[0] = 1;}
+    else if (direction == 1) {direction_[1] = 1;}
+    else if (direction == 2) {direction_[2] = 1;}
+    else {direction_[0] = 1;}
+
+    // Transform direction from world frame to camera frame
+    tmp1.x = direction_[0];
+    tmp1.y = direction_[1];
+    tmp1.z = direction_[2];
+    transformPosition(tmp1, tmp2, "world", grasp_frame_id);
+    myParam.direction << tmp2.x, tmp2.y, tmp2.z;
      
 }
 
@@ -315,6 +325,7 @@ void run()
                     ROS_INFO("Detecting grasps.");
                     grasps = detector->detectGrasps(*cloudPtr, myParam);
                     ROS_INFO("Detected!");
+                    rviz_plotter_->drawGrasps(grasps, grasp_frame_id);
 
                     std::cout << "New point cloud?"
                     "Press y for new cloud, any other key for same point cloud" << std::endl;
@@ -346,10 +357,21 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level, ros::P
     myParam.workspace.resize(6);
     // modify params to type required
 
+    geometry_msgs::Point tmp1, tmp2;
+    float direction_[3] = {0, 0, 0};
     direction = config.direction;
-    if      (direction == 0) {myParam.direction << 1, 0, 0;}
-    else if (direction == 1) {myParam.direction << 0, 1, 0;}
-    else if (direction == 2) {myParam.direction << 0, 0, 1;}
+
+    if      (direction == 0) {direction_[0] = 1;}
+    else if (direction == 1) {direction_[1] = 1;}
+    else if (direction == 2) {direction_[2] = 1;}
+    else {direction_[0] = 1;}
+
+    // Transform direction from world frame to camera frame
+    tmp1.x = direction_[0];
+    tmp1.y = direction_[1];
+    tmp1.z = direction_[2];
+    transformPosition(tmp1, tmp2, "world", grasp_frame_id);
+    myParam.direction << tmp2.x, tmp2.y, tmp2.z;
     
     myParam.camera_position << config.groups.camera_position.x1, 
                                config.groups.camera_position.y1, 
@@ -409,9 +431,9 @@ int main(int argc, char **argv)
     cube_lines.pose.orientation.w = 1.0;
     cube_lines.id               = 0;
     cube_lines.type             = visualization_msgs::Marker::LINE_STRIP;
-    cube_lines.scale.x          = 0.1;
+    cube_lines.scale.x          = 0.02;
     cube_lines.color.r          = 1.0;
-    cube_lines.color.a          = 0.6;
+    cube_lines.color.a          = 0.4;
 
     // Assign param values
     init_param(nh);
@@ -419,12 +441,10 @@ int main(int argc, char **argv)
     workspacecube_pub.publish(cube_lines);
 
     detector = new gpd::GraspDetector(config_file);
-    //rviz_plotter_ = new GraspPlotter(nh, detector->getHandSearchParameters().hand_geometry_);
+    rviz_plotter_ = new GraspPlotter(nh, detector->getHandSearchParameters().hand_geometry_);
 
     // run detection
     run();
-
-    //rviz_plotter_->drawGrasps(grasps, frame_);
 
     // Let ROS handle all callbacks.
     ros::AsyncSpinner spinner(1);
