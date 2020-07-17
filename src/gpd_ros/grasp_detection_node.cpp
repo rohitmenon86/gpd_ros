@@ -40,10 +40,19 @@ GraspDetectionNode::GraspDetectionNode(ros::NodeHandle& node) : has_cloud_(false
   std::string rviz_topic;
   node.param("rviz_topic", rviz_topic, std::string("plot_grasps"));
 
-  if (!rviz_topic.empty()) {
+  // Read parameters from configuration file.
+  gpd::util::ConfigFile config_file(cfg_file);
+  config_file.ExtractKeys();
+  std::vector<double> camera_position =
+      config_file.getValueOfKeyAsStdVectorDouble("camera_position", "0 0 0");
+  view_point_ << camera_position[0], camera_position[1], camera_position[2];
+
+  if (!rviz_topic.empty()) 
+  {
     grasps_rviz_pub_ = node.advertise<visualization_msgs::MarkerArray>(rviz_topic, 1);
     use_rviz_ = true;
-  } else {
+  } 
+  else {
     use_rviz_ = false;
   }
 
