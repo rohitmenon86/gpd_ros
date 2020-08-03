@@ -278,7 +278,7 @@ void init_param(ros::NodeHandle& nh) {
     setGPDGraspWorkspace(ws_height, point1, point2, point3);
     myParam.workspace           = gpd_workspace_;
     myParam.thresh_rad          = thresh_rad;
-    myParam.approach_direction  = approach_direction;
+    myParam.canFilterApproach  = approach_direction;
     myParam.camera_position     << camera_position[0], camera_position[1], camera_position[2];
 
     geometry_msgs::Point tmp1, tmp2;
@@ -287,6 +287,7 @@ void init_param(ros::NodeHandle& nh) {
     if      (direction == 0) {direction_[0] = 1;}
     else if (direction == 1) {direction_[1] = 1;}
     else if (direction == 2) {direction_[2] = 1;}
+    else if (direction == 3) {direction_[1] = -1;}
     else {direction_[0] = 1;}
 
     // Transform direction from world frame to camera frame
@@ -294,7 +295,8 @@ void init_param(ros::NodeHandle& nh) {
     tmp1.y = direction_[1];
     tmp1.z = direction_[2];
     transformPosition(tmp1, tmp2, "world", grasp_frame_id);
-    myParam.direction << tmp2.x, tmp2.y, tmp2.z;
+    myParam.approach_direction << tmp2.x, tmp2.y, tmp2.z;
+    //myParam.approach_direction << tmp1.x, tmp1.y, tmp1.z;
      
 }
 
@@ -364,6 +366,9 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level, ros::P
     if      (direction == 0) {direction_[0] = 1;}
     else if (direction == 1) {direction_[1] = 1;}
     else if (direction == 2) {direction_[2] = 1;}
+    else if (direction == 3) {direction_[0] = -1;}
+    else if (direction == 4) {direction_[1] = -1;}
+    else if (direction == 5) {direction_[2] = -1;}
     else {direction_[0] = 1;}
 
     // Transform direction from world frame to camera frame
@@ -371,8 +376,8 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level, ros::P
     tmp1.y = direction_[1];
     tmp1.z = direction_[2];
     transformPosition(tmp1, tmp2, "world", grasp_frame_id);
-    myParam.direction << tmp2.x, tmp2.y, tmp2.z;
-    
+    myParam.approach_direction << tmp2.x, tmp2.y, tmp2.z;
+    //myParam.approach_direction << tmp1.x, tmp1.y, tmp1.z;
     myParam.camera_position << config.groups.camera_position.x1, 
                                config.groups.camera_position.y1, 
                                config.groups.camera_position.z1;
@@ -391,7 +396,7 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level, ros::P
     setGPDGraspWorkspace(ws_height, point1, point2, point3);
     myParam.workspace = gpd_workspace_;
     myParam.thresh_rad = config.thresh_rad;
-    myParam.approach_direction = config.approach_direction;
+    myParam.canFilterApproach = config.approach_direction;
 
     ROS_INFO("New parameters set.");
 

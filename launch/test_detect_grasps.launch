@@ -10,7 +10,7 @@
   <!-- Start up the dynamic reconfigure GUI. -->
   <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"/>
 
-  <param name="config_file" value="/home/atmaraaj/hrg/gpd/cfg/eigen_params.cfg" />
+  <param name="config_file" value="/home/atmaraaj/hrg/third-party/gpd/cfg/eigen_params.cfg" />
   <param name="point_cloud_topic" value="camera/depth/points"/>
   <param name="rviz_topic" value="plot_grasps" />
   <rosparam param="camera_position">[0, 0, 0]</rosparam>
@@ -18,7 +18,7 @@
 
   <!-- Set approach direction in the world frame: 0 = x-dir; 1 = y-dir; 2 = z-dir -->
   <param name="approach_direction" value="True"/>
-  <param name="direction" value="0"/>
+  <param name="direction" value="1"/>
   <param name="thresh_rad" value="0.4"/>
 
   <rosparam param='point1'>[-1.0, -0.5, 0.3]</rosparam>
@@ -26,6 +26,6 @@
   <rosparam param='point3'>[-1.5, 0.5, 0.3]</rosparam>
   <param name="height" value="1.0"/>
 
-  <node pkg="gpd_ros" type="detect_grasp_test" name=""/>
+  <node pkg="gpd_ros" type="detect_grasp_test" name="test" output="screen"/>
   
 </launch>
