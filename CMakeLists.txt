@@ -83,7 +83,7 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}_grasp_messages src/${PROJECT_NAME}/grasp_messages.cpp)
-add_dependencies(${PROJECT_NAME}_grasp_messages ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME}_grasp_messages ${catkin_EXPORTED_TARGETS} gpd_ros_generate_messages_cpp)
 add_library(${PROJECT_NAME}_grasp_plotter src/${PROJECT_NAME}/grasp_plotter.cpp)
 
 ## Declare a C++ executable
