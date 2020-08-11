@@ -25,7 +25,7 @@
 #include <dynamic_reconfigure/server.h>
 
 // initialize param variables
-struct gpd::detect_params myParam;
+struct gpd::DetectParams myParam;
 
 // get params from param server, values initialized in launch file
 int direction;
@@ -278,7 +278,7 @@ void init_param(ros::NodeHandle& nh) {
     setGPDGraspWorkspace(ws_height, point1, point2, point3);
     myParam.workspace           = gpd_workspace_;
     myParam.thresh_rad          = thresh_rad;
-    myParam.canFilterApproach  = approach_direction;
+    myParam.can_filter_approach  = approach_direction;
     myParam.camera_position     << camera_position[0], camera_position[1], camera_position[2];
 
     geometry_msgs::Point tmp1, tmp2;
@@ -396,7 +396,7 @@ void configCallback(gpd_ros::detect_graspsConfig &config, uint32_t level, ros::P
     setGPDGraspWorkspace(ws_height, point1, point2, point3);
     myParam.workspace = gpd_workspace_;
     myParam.thresh_rad = config.thresh_rad;
-    myParam.canFilterApproach = config.approach_direction;
+    myParam.can_filter_approach = config.approach_direction;
 
     ROS_INFO("New parameters set.");
 
